@@ -1,0 +1,214 @@
+//USAGE:
+//use<fillet.scad>
+//
+//Syntax:
+//  filletcube(size=[x, y, z], filletr, filletn, mode, corner, epsilon, center);
+//  filletcylinder(h, r, filletr, filletn, mode, epsilon, center);
+//
+//		
+
+/**
+$vpr = [35, 0, 40];
+$vpt = [30, 20, 0];
+$vpd = 200;
+$vpf = 25;
+/**/
+
+
+
+filletdemo();
+module filletdemo(){
+	$fn=50;
+	size=[8, 10, 12];
+	
+	// SHAPES
+	for(mode=[0, 1, 2], corner=[0, 1], filletr=[-2, -1, 0, 1, 2], filletn=[1, 20]){
+		color(filletr<0?"greenyellow":filletr==0?"gainsboro":"gold"){
+			translate([mode*15, corner*20+(filletn-1)*-4, filletr*50])
+				filletcube(size=size, mode=mode, filletr=filletr, corner=corner, filletn=filletn);
+			translate([mode*15+4, 45+(filletn-1)*-4, filletr*50])
+				filletcylinder(h=size.z, r=size.x/2, mode=mode, filletr=filletr, filletn=filletn);
+			}
+	
+		// LABEL NUMBERS
+		//X-axis
+		translate([mode*15, 0, 0])
+			linear_extrude(.1)
+				text(str(mode), halign="left", valign="top");
+
+		//Y-axis
+		translate([0, corner*20, 0])
+			rotate([0, 0, 90])
+				linear_extrude(.1)
+					text(str(corner), halign="left", valign="bottom");
+		
+		//Z-axis
+		translate([0, 0, 50*filletr])
+			rotate([0, 0, 45])
+				rotate([0, -90, 90])
+					linear_extrude(.1)
+						text(str(filletr), halign="left", valign="bottom");
+	}
+	
+	
+	// LABEL NAMES
+	//X-axis
+	translate([0, -10, 0])
+		linear_extrude(.1)
+			text(str("mode"), halign="left", valign="top");
+
+	//Y-axis
+	translate([-10, 0, 0])
+		rotate([0, 0, 90])
+			linear_extrude(.1)
+				text(str("corner"), halign="left", valign="bottom");
+
+	//Z-axis
+	rotate([0, 0, 45])
+		translate([-10, 0, 0])
+				rotate([0, -90, 90])
+					linear_extrude(.1)
+						text(str("filletr"), halign="left", valign="bottom");
+}
+
+module filletcylinder(h=10, r=10, filletr=1, filletn=1, mode=2, epsilon=0.01, center=false){
+	translate([0, 0, (center?-h/2:0)]){
+		if (mode==0)
+			translate([0, 0, (filletr<0?-epsilon:0)])
+				cylinder(h=h+(filletr<0?2*epsilon:0), r=r);
+		else if (mode==1)
+			rotate_extrude(convexity = 10){
+				polygon([
+					[0, (filletr<0?-epsilon:0)],
+					[r-filletr, (filletr<0?-epsilon:0)],
+					for(a=[0:90/filletn:90])
+						[sin(a)*filletr+r-filletr, -cos(a)*abs(filletr)+abs(filletr)],
+					for(a=[90:90/filletn:180])
+						[sin(a)*filletr+r-filletr, -cos(a)*abs(filletr)+h-abs(filletr)],
+					[r-filletr, h+(filletr<0?epsilon:0)],
+					[0, h+(filletr<0?epsilon:0)],
+				]);
+			}
+	}
+}
+
+module filletcube(size=[10, 10, 10], filletr=1, filletn=1, mode=2, corner=0, epsilon=0.01, center=false) {
+	if      (mode==0) // cube
+		translate([0, 0, (filletr<0?-epsilon:0)])
+			cube(size+[0, 0, (filletr<0?2*epsilon:0)], center=center);
+	else if (mode==1) // face
+		__filletface(size=size, filletr=filletr, filletn=filletn, corner=corner, epsilon=epsilon, center=center);
+	else if (mode==2) // all
+		__filletcube(size=size, filletr=filletr, filletn=filletn, corner=corner, epsilon=epsilon, center=center);
+}
+
+
+module __filletsides(size, filletr, filletn, epsilon, center){
+	for (v=[0:1]) if (size[v]-2*filletr < 0) echo (str("Value of size[",v,"] is too small for fillet value"));
+	translate(center?-[size.x/2, size.y/2, 0] : [0, 0, size.z/2])
+		linear_extrude(size[2], center=true, convexity=2){
+			polygon([
+				[filletr, (filletr<0?-epsilon:0)],
+				[size.x-filletr, (filletr<0?-epsilon:0)],
+				for(a=[0:90/filletn:90])
+					[sin(a)*filletr+size.x-filletr, -cos(a)*abs(filletr)+abs(filletr)],
+				for(a=[90:90/filletn:180])
+					[sin(a)*filletr+size.x-filletr, -cos(a)*abs(filletr)+size.y-abs(filletr)],
+				[size.x-filletr, size.y+(filletr<0?epsilon:0)],
+				[filletr, size.y+(filletr<0?epsilon:0)],
+				for(a=[180:90/filletn:270])
+					[sin(a)*filletr+filletr, -cos(a)*abs(filletr)+size.y-abs(filletr)],
+				for(a=[270:90/filletn:360])
+					[sin(a)*filletr+filletr, -cos(a)*abs(filletr)+abs(filletr)],
+			]);
+		}
+}
+
+//translate([-15, 0, 0])
+//	__filletinterface(size=[10, 10, 10], filletr=-2, filletr2=-2, filletn=10, corner=1, epsilon=0.01, center=false);
+
+
+module __filletinterface(size, filletr, filletr2, filletn, corner, epsilon, center){
+	translate(center?[0, 0, 0] : size/2)
+		for(x=[0, 1], y=[0, 1], z=[0, 1]){
+//		let(x=0, y=0, z=0){
+			mirror([0, 0, z]){
+				mirror([0, y, 0])
+					translate([0, -size.y/2, -size.z/2])
+						rotate([270, 270, 270])
+							__filletedge(h=size.x-2*abs(filletr)+(filletr<0?2*epsilon:0), filletr=filletr, filletn=filletn, epsilon=epsilon, center=true);
+				mirror([x, 0, 0])
+					translate([-size.x/2, 0, -size.z/2])
+						rotate([270, 270, 180])
+							__filletedge(h=size.y-2*abs(filletr)+(filletr<0?2*epsilon:0), filletr=filletr, filletn=filletn, epsilon=epsilon, center=true);
+				mirror([0, y, 0])
+					mirror([x, 0, 0])
+						translate([abs(filletr)-size.x/2, abs(filletr)-size.y/2, -size.z/2])
+							rotate([0, 0, 180])
+								filletcorner(r1=(filletr<0?filletr:0), r2=(filletr2==undef?filletr:filletr2), n=filletn, epsilon=epsilon);
+			}
+		}
+}
+
+//filletcorner(r1=2, r2=-1, n=100, a1=90, a2=90, corner=1, epsilon=0.01);
+
+module filletcorner(r1=1, r2=1, n, a1=90, a2=90, corner, epsilon=0.01){
+	hcut=((0<a2&&a2<90)?tan(a2)*(1-sin(a2))*r2:0);
+	rotate_extrude(angle=a1, $fn=4*n)
+		polygon([
+			[0, (r2<0?-epsilon:0)],
+			[0, abs(r2)],
+			[abs(r1)+(r2<0?0:r2), abs(r2)],
+			for(a=[0:a2/n:a2])
+				[abs(r1)+(r2<0?-r2:0)+cos(a)*r2, abs(r2)-sin(a)*abs(r2)],
+			[abs(r1)+(r2<0?-r2:0)-(1-cos(a2))*r2+r2-hcut, 0],
+			[abs(r1)+(r2<0?-r2:0)-(1-cos(a2))*r2+r2-hcut, (r2<0?-epsilon:0)],
+		]);
+}
+
+module __filletedge(h, filletr, filletn, epsilon, center){
+	linear_extrude(height=h, center=true)
+		polygon([
+			[(filletr<0?-epsilon:abs(filletr)), (filletr<0?-epsilon:0)-abs(filletr)],
+			[(filletr<0?-epsilon:0), -filletr],
+			for(a=[0:90/filletn:90])
+				[cos(a)*(-abs(filletr))+abs(filletr), sin(a)*filletr-filletr],
+			[abs(filletr), (filletr<0?-epsilon:0)-abs(filletr)],
+		]);
+}
+
+// 1
+module __filletface(size, filletr, filletn, corner, epsilon, center){
+	if(corner==0){
+		__filletsides(size=size, filletr=filletr, filletn=filletn, epsilon=epsilon, center=center);
+	}else{
+		for (v=[1:2]) if (size[v] < 2*filletr) echo (str("Value of size[",v,"] is too small for fillet value"));
+		translate(center?[0, 0, 0] : size/2){
+			intersection(){
+				rotate([90, 0, 0])
+					__filletsides([size[0], size[2], size[1]+2*abs(filletr)], filletr=filletr, filletn=filletn, epsilon=epsilon, center=true);
+				rotate([90, 0, 90])
+					__filletsides([size[1], size[2], size[0]+2*abs(filletr)], filletr=filletr, filletn=filletn, epsilon=epsilon, center=true);
+			}
+		}
+	}
+}
+
+// 2
+module __filletcube(size, filletr, filletn, corner, epsilon, center){
+	for (v=[1:2]) if (size[v] < 2*filletr) echo (str("Value of size[",v,"] is too small for fillet value"));
+	if(filletr<0 || corner==1){
+		__filletinterface(size=size, filletr=filletr, filletn=filletn, corner=corner, epsilon=epsilon, center=center);
+		translate(center?[0, 0, 0]:[0, 0, -epsilon+(filletr<0?0:filletr)])
+			__filletsides(size+[0, 0, 2*epsilon+(filletr<0?0:-2*filletr)], abs(filletr), filletn, epsilon=epsilon, center);
+		if(filletr>=0)
+			translate(center?[0, 0, 0]:[filletr-epsilon, filletr-epsilon, 0])
+				cube([size.x-2*filletr+epsilon, size.y-2*filletr+epsilon, size.z], center=center);
+	} else
+	translate(!center?[0, 0, 0] : -size/2){
+		intersection(){
+			__filletface(size, filletr, filletn);
+			__filletsides(size, filletr, filletn);
+		}
+	}
+}
